@@ -1,6 +1,37 @@
 # dsconfigad
 
-A module to wrap [dsconfigad](http://bit.ly/15gnT5I) calls.  This file would go in the _modules directory, [as decribed in the saltstack docs](http://bit.ly/19X3Y4c).
+A module to wrap [dsconfigad](http://bit.ly/15gnT5I) calls.
+
+---
+
+##Install
+
+This is a very basic (4 steps) install walkthrough.  You will need to adjust this to your environment.  If you have salt specific questions, connected with the [SaltStack community](http://saltstack.org).
+
+1. Place [dsconfigad.py](https://github.com/VertigoRay/salt-osx-dsconfigad/blob/master/dsconfigad.py) in the file_roots/[_modules](http://bit.ly/19X3Y4c) directory.
+2. Setup the [dsconfigad Pillar](#pillar).  
+  _Might want to do some testing at this point ..._  
+  * `salt 'testcomp001' state.highstate`
+  * `salt 'testcomp001' dsconfigad.add`
+  * `salt 'testcomp001' dsconfigad.show`
+  _/end testing ..._  
+
+3. Create an file_roots/dsconfigad/init.sls:  
+```yaml
+dsconfigad.add
+dsconfigad.config
+```
+
+4. Add dsconfigad to your top.sls -- hopefully you have a `dev` [environment](http://docs.saltstack.com/ref/states/top.html) to test with, else use `base`:  
+```yaml
+dev:
+      '*':
+        - dsconfigad
+```
+
+[Known Issues ...](#knownissues)
+
+---
 
 Public Functions:
 * [add](#add)
@@ -49,7 +80,8 @@ Additional Documentation
 * [Good Security Practices](#goodsecuritypractices)
 * [Known Issues](#knownissues)
 
--------------------------
+---
+
 <a name="add"/>
 ### add
 
