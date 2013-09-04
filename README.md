@@ -227,7 +227,7 @@ In this section, I'll breakdown how to YAMLize your dsconfigad settings.  A full
 * [uid](#uid)
 * [useuncpath](#useuncpath)
 
-**_Note:_** These options are what's available in OS X 10.8.4.  New _Advanced Options_ that are released in future _should_ just work -- if you use them as described in the documentation.  Just use it in the same fashion as a similar option.  For example, if you want to disable a _newoption_ that has enable/disable as possible options:
+**_Note:_** These options are what's available in OS X 10.8.4.  New _Advanced Options_ that are released in future _will not_ just work -- they will need to be added to the `dsconfigad_adv` dict.  Just use it in the same fashion as a similar option.  For example, if you want to disable a _newoption_ that has enable/disable as possible options:
 ```yaml
 dsconfigad:
   newoption: False
