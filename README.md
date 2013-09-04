@@ -19,8 +19,8 @@ This is a very basic (4 steps) install walkthrough.  You will need to adjust thi
 3. Create an file_roots/dsconfigad/init.sls:  
 ```yaml
 dsconfigad:
-      dsconfigad:
-        - bind
+  module.run:
+    - name: dsconfigad.bind
 ```
 
 4. Add dsconfigad to your top.sls -- hopefully you have a `dev` [environment](http://docs.saltstack.com/ref/states/top.html) to test with, else use `base`:  
