@@ -142,12 +142,7 @@ def _is_set(**kwargs):
                 try:
                     for k2, v2 in v1.iteritems():
                         try:
-                            key = dsconfig_map[k2.lower()]
-                            if key == 'gid' or key == 'ggid' or key == 'groups' or key == 'preferred' or key == 'uid':
-                                settings[key] = False if v2.lower() == 'false' else v2.lower()
-                            
-                            else:
-                                settings[key] = v2.lower()
+                            settings[dsconfig_map[k2.lower()]] = v2.lower()
                         
                         except KeyError as e:
                             # dsconfig_map key doesn't exist, so pass
@@ -240,12 +235,30 @@ def _is_set(**kwargs):
                     
             except TypeError as e:
                 # likely not a sortable v, and since made it past main if, likely is not equal
-                log.debug('~ is_set: TypeError: %s' % e)
+                log.debug('! is_set: TypeError: %s' % e)
                 return False
 
         else:
-            log.debug('< is_set: False (%s not in settings)' % k)
-            return False
+            log.debug('~ is_set: %s not in settings' % k)
+
+            try:
+                if dsconfig_adv[k][0] == False:
+                    # Settings with a -no variant (-noguid, -nogroups, etc.) will not show up in current settings XML.
+                    # Since is not in current settings at this point, we just need to check if the desired option (v) is bool(False).
+                    log.debug('~ is_set: has a -no variant ...')
+                    if v == False:
+                        continue
+                    else:
+                        log.debug('< is_set: False (%s is not False)' % k)
+                        return False
+
+            except IndexError as e:
+                log.debug('< is_set: False (%s not in settings)' % k)
+                return False
+
+            except KeyError as e:
+                log.debug('< is_set: False (%s not in settings)' % k)
+                return False
 
     log.debug('< is_set: True')
     return True
@@ -367,20 +380,43 @@ def bind(**kwargs):
     this is just calls add followed by config
     '''
 
+    log.info('> bind()')
+    log.debug('> bind(%s %s)' % (kwargs, type(kwargs)))
+    
+    global ret
+
+    # Check to see if we're calling from a state ...
+    # http://docs.saltstack.com/ref/states/all/salt.states.module.html#module-salt.states.module
+    if '__pub_fun' not in kwargs:
+        ret['m_fun'] = 'bind'
+        ret['m_name'] = 'dsconfigad'
+
     before = show()
 
     ret_add = add(**kwargs)
+    log.debug('~ bind: ret_add: %s' % ret_add)
+
     if ret_add['result'] == False:
+        log.debug('! bind: ret_add: result == false; Done!')
+        ret['fun'] = 'bind'
         return ret_add
 
-    global ret
+    log.debug('~ bind: overwrite global ret so config() just adds to it.')
+    
     ret = ret_add
+
+    # need a newlinee on comment for aesthetics.
     ret['comment'] += '\n'
 
     ret_cnf = config(**kwargs)
+    log.debug('~ bind: ret_cnf: %s' % ret_cnf)
 
     ret_cnf['changes']['diff'] = ''.join(difflib.unified_diff(before.splitlines(True), show().splitlines(True), fromfile='dsconfigad -show', tofile='dsconfigad -show'))
+    log.debug('~ bind: changes diff: %s' % ret_cnf['changes']['diff'])
     
+    ret['fun'] = 'bind'
+    
+    log.debug('< bind: %s' % ret_cnf)
     return ret_cnf
 
 
@@ -487,6 +523,16 @@ def config(use_pillar=False, **kwargs):
 
             if type(v) is list:
                 v = ','.join(v)
+
+            try:
+                if dsconfig_adv[k][0] == False:
+                    # Settings with a -no variant (-noguid, -nogroups, etc.) need to have k changed.
+                    log.debug('~ config: has a -no variant ...')
+                    if v == False:
+                        k = 'no%s' % k
+
+            except IndexError as e:
+                pass
 
             cmd = '%(dsconfigad)s -%(option)s "%(value)s"%(localuser)s%(localpassword)s' % {
                 'dsconfigad':dsconfigad,
@@ -619,6 +665,7 @@ def show(format=False):
     '''
 
     log.info('> show(format=%s)' % format)
+    ret['fun'] = 'show'
     
     if type(format) is bool and not format:
         return __salt__['cmd.run'](
