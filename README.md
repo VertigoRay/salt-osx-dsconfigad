@@ -2,48 +2,16 @@
 
 A module to wrap [dsconfigad](http://bit.ly/15gnT5I) calls.
 
----
-
-##Install
-
-This is a very basic (4 steps) install walkthrough.  You will need to adjust this to your environment.  If you have salt specific questions, connected with the [SaltStack community](http://saltstack.org).
-
-1. Place [dsconfigad.py](https://github.com/VertigoRay/salt-osx-dsconfigad/blob/master/dsconfigad.py) in the file_roots/[_modules](http://bit.ly/19X3Y4c) directory.
-2. Setup the [dsconfigad Pillar](#pillar).  
-  _Might want to do some testing at this point ..._  
-  * `salt 'testcomp001' state.highstate`
-  * `salt 'testcomp001' dsconfigad.add`
-  * `salt 'testcomp001' dsconfigad.show`
-  _/end testing ..._  
-
-3. Create an file_roots/dsconfigad/init.sls:  
-```yaml
-dsconfigad:
-      module.run:
-        - name: dsconfigad.bind
-```
-
-4. Add dsconfigad to your top.sls -- hopefully you have a `dev` [environment](http://docs.saltstack.com/ref/states/top.html) to test with, else use `base`:  
-```yaml
-dev:
-      '*':
-        - dsconfigad
-```
-
----
-
-Public Functions:
-* [add](#add)
-* [bind](#bind)
-* [config](#config)
-* [remove](#remove)
-* [show](#show)
-
-Note:  The `test` function, if available, does nothing with dsconfigad.  It was used while debugging, and will likely be removed in a future commit.
-
-Note:  The `_is_set` function is private because salt CLI passes private variables (ie: __pub_user, __pub_arg, __pub_fun, etc.) into kwargs that aren't currently handled -- and may never be.
-
-Additional Documentation
+* [Install](#install)
+* [Basic Usage](#basic-usage)
+  * [States](#states)
+  * [Modules](#modules)
+* [Public Functions](#public-functions)
+  * [add](#add)
+  * [bind](#bind)
+  * [config](#config)
+  * [remove](#remove)
+  * [show](#show)
 * [Pillar](#pillar)
   * [domain](#domain)
   * [forest](#forest)
@@ -80,6 +48,83 @@ Additional Documentation
 * [Good Security Practices](#good-security-practices)
 
 ---
+
+##Install
+
+This is a very basic (4 steps) install walkthrough.  You will need to adjust this to your environment.  If you have salt specific questions, connected with the [SaltStack community](http://saltstack.org).
+
+1. Place [dsconfigad.py](https://github.com/VertigoRay/salt-osx-dsconfigad/blob/master/dsconfigad.py) in the file_roots/[_modules](http://bit.ly/19X3Y4c) directory.
+2. Setup the [dsconfigad Pillar](#pillar).  
+  _Might want to do some testing at this point ..._  
+  * `salt 'testcomp001' state.highstate`
+  * `salt 'testcomp001' dsconfigad.add`
+  * `salt 'testcomp001' dsconfigad.show`
+  _/end testing ..._  
+
+## Basic Usage
+
+### States
+
+1. Create an file_roots/dsconfigad/init.sls:  
+```yaml
+dsconfigad:
+      module.run:
+        - name: dsconfigad.bind
+```
+
+2. Add dsconfigad to your top.sls -- hopefully you have a `dev` [environment](http://docs.saltstack.com/ref/states/top.html) to test with, else use `base`:  
+```yaml
+dev:
+      '*':
+        - dsconfigad
+```
+
+### Modules
+
+This section goes over how to issue commands from the salt master (dot (.) represents the targetted computer and is NOT salt syntax):
+
+Add a computer to the domain -- use pillar[dsconfigad]:
+```bash
+salt '.' dsconfigad.add
+```
+
+Configure the advanced dsconfigad options -- use pillar[dsconfigad]:
+```bash
+salt '.' dsconfigad.config
+```
+
+Configure a single advanced dsconfigad option -- set uid to str('SID'):
+```bash
+salt '.' dsconfigad.config uid=SID
+```
+
+Add a computer to the domain AND configure the advanced dsconfigad options -- use pillar[dsconfigad]:
+```bash
+salt '.' dsconfigad.bind
+```
+
+Remove a computer from the domain -- use pillar[dsconfigad]:
+```bash
+salt '.' dsconfigad.remove
+```
+
+Show current dsconfigad settings:
+```bash
+salt '.' dsconfigad.show
+```
+
+Show current dsconfigad settings in plist (xml) format:
+```bash
+salt '.' dsconfigad.show xml
+```
+
+---
+
+## Public Functions
+
+The `test` function, if available, does nothing with dsconfigad.  It was used while debugging, and will likely be removed in a future commit.
+
+The `_is_set` function is private because salt CLI passes private variables (ie: __pub_user, __pub_arg, __pub_fun, etc.) into kwargs that aren't currently handled -- and may never be.
 
 ### add
 
