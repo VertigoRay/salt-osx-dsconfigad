@@ -360,6 +360,30 @@ def add(**kwargs):
 		return ret
 
 
+def bind(**kwargs):
+	'''
+	Bind the computer
+
+	this is just calls add followed by config
+	'''
+
+	before = show()
+
+	ret_add = add(**kwargs)
+	if ret_add['result'] == False:
+		return ret_add
+
+	global ret
+	ret = ret_add
+	ret['comment'] += '\n'
+
+	ret_cnf = config(**kwargs)
+
+	ret_cnf['changes']['diff'] = ''.join(difflib.unified_diff(before.splitlines(True), show().splitlines(True), fromfile='dsconfigad -show', tofile='dsconfigad -show'))
+	
+	return ret_cnf
+
+
 def config(use_pillar=False, **kwargs):
 	'''
 	Configure advanced options
