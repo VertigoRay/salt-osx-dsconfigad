@@ -1,7 +1,7 @@
 '''
 A module to wrap dsconfigad calls
 
-:maintainer:  VertigoRay
+:maintainer:	Raymond Piller <ray@vertigion.com>
 :maturity:		new
 :depends:		
 :platform:		Darwin
@@ -14,37 +14,49 @@ import logging
 import plistlib
 import re
 import socket
+import xml
 
 # Import salt libs
 import salt.utils
 
 log = logging.getLogger(__name__)
-ret = {'name': 'dsconfigad', 'changes': {}, 'result': False, 'comment': ''}
+ret = {
+	'state': 'dsconfigad',
+	'fun': '',
+	'name': 'dsconfigad', # the name argument passed to all states
+	'changes': {},
+	'result': False,
+	'comment': '',
+}
+
 
 # dsconfigad -show returns human readable fields, this maps them to settings.
 dsconfig_map = {
-	'authentication from any domain':	'alldomains',
-	'generate kerberos authority':		'authority',
-	'computer account':					'computer',
 	'active directory domain':			'domain',
 	'active directory forest':			'forest',
-	'mapping group gid to attribute':	'ggid',
-	'mapping user gid to attribute':	'gid',
 	'allowed admin groups':				'groups',
-	'force home to startup disk':		'localhome',
+	'authentication from any domain':	'alldomains',
+	'computer account':					'computer',
 	'create mobile account at login':	'mobile',
-	'require confirmation':				'mobileconfirm',
+	'force home to startup disk':		'localhome',
+	'generate kerberos authority':		'authority',
+	'group gid mapping':				'ggid',
+	'mapping group gid to attribute':	'ggid',
+	'mapping uid to attribute':			'uid',
+	'mapping user gid to attribute':	'gid',
+	'mount home as sharepoint':			'sharepoint',
 	'namespace mode':					'namespace',
+	'network protocol':					'protocol',
 	'packet encryption':				'packetencrypt',
 	'packet signing':					'packetsign',
 	'password change interval':			'passinterval',
 	'preferred domain controller':		'preferred',
-	'network protocol':					'protocol',
+	'require confirmation':				'mobileconfirm',
 	'restrict dynamic dns updates':		'restrictddns',
-	'mount home as sharepoint':			'sharepoint',
-	'shell':							'shell',
-	'mapping uid to attribute':			'uid',
+	'uid mapping':						'uid',
 	'use windows unc path for home':	'useuncpath',
+	'user gid mapping':					'gid',
+	'shell':							'shell',
 }
 
 # this associates a setting with allowed inputs for that setting
@@ -78,7 +90,17 @@ def __virtual__():
 	return 'dsconfigad' if salt.utils.is_darwin() else False
 
 
-def is_set(**kwargs):
+def _ret_comment(comment, res):
+	comment = comment + '%(pid)s%(retcode)s%(stdout)s%(stderr)s\n' if __salt__['config.get']('is_test_computer', False) else '%s\n' % comment
+	return comment % {
+		'pid':" <pid '%s'>" % res['pid'], 
+		'retcode':"<retcode '%s'>" % res['retcode'], 
+		'stdout':"<stdout '%s'>" % res['stdout'] if res['retcode'] != 0 else '', 
+		'stderr':"<stderr '%s'>" % res['stderr'] if res['retcode'] != 0 else '',
+	}
+
+
+def _is_set(**kwargs):
 	'''
 	Validate the supplied option -- comparing the desired option with the current setting.
 
@@ -96,28 +118,131 @@ def is_set(**kwargs):
 	The current setting will be pulled from show('xml')
 	'''
 	
-	log.debug('> is_set(%s)' % kwargs)
+	log.info('> _is_set()')
+	log.debug('> _is_set(%s %s)' % (kwargs, type(kwargs)))
+	ret['fun'] = 'is_set'
 
 	settings = {}
-	for k, v in (plistlib.readPlistFromString(show('xml').strip())).iteritems():
-		settings[dsconfig_map[k.lower()]] = v
+	try:
+		# build settings dict so we can compare to desired options.
+		# this wasn't done globally so that settings would always be accurate, even after changes in the middle of an iteration.
+		for k1, v1 in plistlib.readPlistFromString(show('xml')).iteritems():
+			try:
+				try:
+					settings[dsconfig_map[k1.lower()]] = v1.lower()
+				
+				except AttributeError as e:
+					log.debug('! is_set: AttributeError: %s' % e)
+					settings[dsconfig_map[k1.lower()]] = v1
 
-	log.debug('~ is_set: settings: %s' % settings)
+			except KeyError as e:
+				log.debug('! is_set: KeyError: %s' % e)
+				# Headings aren't keyed in dsconfig_map.
+				# Assume is header and check v if dict and traverse
+				try:
+					for k2, v2 in v1.iteritems():
+						try:
+							key = dsconfig_map[k2.lower()]
+							if key == 'gid' or key == 'ggid' or key == 'groups' or key == 'preferred' or key == 'uid':
+								settings[key] = False if v2.lower() == 'false' else v2.lower()
+							
+							else:
+								settings[key] = v2.lower()
+						
+						except KeyError as e:
+							# dsconfig_map key doesn't exist, so pass
+							log.debug('! is_set: KeyError: %s' % e)
+						
+						except AttributeError as e:
+							# .lower() is not valid attribute on v2
+							log.debug('! is_set: AttributeError: %s' % e)
+							settings[dsconfig_map[k2.lower()]] = v2
+				
+				except TypeError as e:
+					log.debug('~ is_set: TypeError: %s' % e)
 
-	for k, v in kwargs:
+		log.debug('~ is_set: settings (dirty): %s' % settings)
+		
+		# if restrictddns didn't get parsed into settings, it's set to False
+		# we set it here to prevent issues with settings not matching
+		if 'restrictddns' not in settings:
+			log.debug('! is_set: restrictddns not in settings: False')
+			settings['restrictddns'] = False
+
+		# groups needs to be a list, if it's a str
+		try:
+			settings['groups'] = [settings['groups']] if type(settings['groups']) is str else settings['groups']
+		
+		except KeyError as e:
+			# if groups not in settings, then it is set to False
+			settings['groups'] = False
+
+
+	except xml.parsers.expat.ExpatError as e:
+		# dsconfigad -show -xml is empty: computer not bound
+		# pass; cause setting check below will catch mismatches and respond properly.
+		log.debug('! is_set: ExpatError: %s' % e)
+
+
+	log.debug('~ is_set: settings (clean): %s' % settings)
+
+	for k, v in kwargs.iteritems():
 		k = k.lower()
-		log.debug('~ is_set: kwarg[%s] == %s; settings[%s] == %s' % (k, v, k, settings[k]))
+		try:
+			v = v.lower()
+		except AttributeError as e:
+			# .lower() is not valid attribute on v
+			log.debug('! is_set: AttributeError: %s' % e)
+
+		if k == 'computer':
+			# domain object ends in $
+			# add $ to end of local computer name before comparison.
+			v += '$'
+		
+		if k.lower() == 'restrictddns':
+			# restrictddns is an oddball.
+			# It'll show up as str('') when it needs to be disabled, but bool(False) makes more sense
+			if len(v.strip()) == 0:
+				v = False
 
 		if k in settings:
-			if settings[k] == v:
-				log.debug('~ is_set: settings[k] == v')
-				continue
-			elif type(settings[k]) is not str and type(v) is not str and sorted(settings[k]) == sorted(v):
-				log.debug('~ is_set: type(%s) is %s; type(%s) is %s; sorted(%s) == sorted(%s)' % (settings[k], type(settings[k]), v, type(v), sorted(settings[k]), sorted(v)))
-				continue
-			else:
-				log.debug('< is_set: False (kwarg != setting)')
+			log.debug('~ is_set: kwarg[%s] == %s %s; settings[%s] == %s %s' % (k, v, type(v), k, settings[k], type(settings[k])))
+
+			try:
+				if v == settings[k]:
+					log.debug('~ is_set: %s == %s' % (v, settings[k]))
+					continue
+				
+				elif sorted(v) == sorted(settings[k]):
+					log.debug('~ is_set: sorted(%s) == sorted(%s)' % (settings[k], type(settings[k]), v, type(v), sorted(settings[k]), sorted(v)))
+					continue
+
+				elif type(v) != type(settings[k]):
+					log.debug('~ is_set: type(kwarg) != type(setting)')
+					
+					# if types don't match, we'll assume that one is list and the other is something else
+					# make sure both are list and then compare sorted()
+					if type(v) is not list:
+						log.debug('~ is_set: type(v) is not list; converting to list')
+						v_temp = [v]
+					
+					if type(settings[k]) is not list:
+						log.debug('~ is_set: type(settings[k]) is not list; converting to list')
+						setting_temp = [settings[k]]
+
+					if sorted(v) == sorted(settings[k]):
+						log.debug('~ is_set: sorted(%s) == sorted(%s)' % (settings[k], type(settings[k]), v, type(v), sorted(settings[k]), sorted(v)))
+						continue
+
+				else:
+					log.debug('< is_set: False (kwarg != setting)')
+					return False
+					
+			except TypeError as e:
+				# likely not a sortable v, and since made it past main if, likely is not equal
+				log.debug('~ is_set: TypeError: %s' % e)
 				return False
+
 		else:
 			log.debug('< is_set: False (%s not in settings)' % k)
 			return False
@@ -144,6 +269,9 @@ def add(**kwargs):
 	* will look in pillar[dsconfigad] if not provided
 	'''
 
+	log.info('> add()')
+	log.debug('> add(%s %s)' % (kwargs, type(kwargs)))
+	ret['fun'] = 'add'
 	before = show()
 
 	username = base64.b64decode(kwargs.pop('init_u')) if 'init_u' in kwargs else kwargs.pop('username', None)
@@ -154,17 +282,18 @@ def add(**kwargs):
 	domain = kwargs.pop('domain', None)
 	ou = kwargs.pop('ou', None)
 	computer = kwargs.pop('computer', None)
+	preferred = kwargs.pop('preferred', None)
 	force = kwargs.pop('force', None)
 
 	# Get encoded configuration from pillar
 	if not username:
-		username = base64.b64decode(__salt__['config.get']('dsconfigad:init_u', None))
+		username = base64.b64decode(__salt__['config.get']('dsconfigad:init_u', ''))
 	if not password:
-		password = base64.b64decode(__salt__['config.get']('dsconfigad:init_p', None))
+		password = base64.b64decode(__salt__['config.get']('dsconfigad:init_p', ''))
 	if not localuser:
-		localuser = base64.b64decode(__salt__['config.get']('dsconfigad:init_lu', None))
+		localuser = base64.b64decode(__salt__['config.get']('dsconfigad:init_lu', ''))
 	if not localpassword:
-		localpassword = base64.b64decode(__salt__['config.get']('dsconfigad:init_lp', None))
+		localpassword = base64.b64decode(__salt__['config.get']('dsconfigad:init_lp', ''))
 
 	# If not encoded, try plain text. Get encoded configuration from pillar
 	if not username:
@@ -183,40 +312,50 @@ def add(**kwargs):
 		ou = __salt__['config.get']('dsconfigad:ou', None)
 	if not computer:
 		computer = __salt__['config.get']('dsconfigad:computer', socket.gethostname())
+	if not preferred:
+		preferred = __salt__['config.get']('dsconfigad:preferred', None)
 
 	if not username:
 		return False
 
 	if forest:
-		is_set = is_set(forest=forest, domain=domain, computer=computer)
+		is_set_res = _is_set(forest=forest, domain=domain, computer=computer)
 	else:
-		is_set = is_set(domain=domain, computer=computer)
+		is_set_res = _is_set(domain=domain, computer=computer)
 
-	if is_set:
+	log.debug('~ add: is_set_res: %s' % is_set_res)
+	if is_set_res:
 		ret['result'] = True
 		ret['comment'] = ('Computer %s is already bound to domain %s' % (computer, domain))
 		return ret
 	else:
-		res = __salt__['cmd.run'](
-			'dsconfigad -add%(force)s%(computer)s%(ou)s%(preferred)s%(username)s%(password)s%(localuser)s%(localpassword)s' % {
-				'force':' -force' if salt.utils.is_true(kwargs.get('force', True)) else None,
-				'computer':' -computer "%s"' % computer if computer else None,
-				'ou':' -ou "%s"' % ou if ou else None,
-				'preferred':' -preferred "%s"' % preferred if preferred else None,
-				'username':' -username "%s"' % username if username else None,
-				'password':' -password "%s"' % password if password else None,
-				'localuser':' -localuser "%s"' % localuser if localuser else None,
-				'localpassword':' -localpassword "%s"' % localpassword if localpassword else None,
-			}
-		)
+		dsconfigad = salt.utils.which('dsconfigad')
 
-		ret['changes']['diff'] = ''.join(difflib.unified_diff(before, show()))
-		ret['comment'] = ('dsconfigad: %s\nPID: %s; RetCode: %s\n%s' % (res['stdout'], res['pid'], res['retcode'], res['stderr']))
+		cmd = '%(dsconfigad)s -add%(computer)s%(ou)s%(preferred)s%(username)s%(password)s%(localuser)s%(localpassword)s%(force)s' % {
+			'dsconfigad':dsconfigad,
+			'force':' -force' if salt.utils.is_true(kwargs.get('force', True)) else '',
+			'computer':' -computer "%s"' % computer if computer else '',
+			'ou':' -ou "%s"' % ou if ou else '',
+			'preferred':' -preferred "%s"' % preferred if preferred else '',
+			'username':' -username "%s"' % username if username else '',
+			'password':' -password "%s"' % password if password else '',
+			'localuser':' -localuser "%s"' % localuser if localuser else '',
+			'localpassword':' -localpassword "%s"' % localpassword if localpassword else '',
+		}
+
+		log.debug('~ add: cmd.run_all (quiet): %s' % cmd)
+		# run quietly to prevent passwords from showing in info log.
+		res = __salt__['cmd.run_all'](cmd, quiet=True)
+		log.debug('~ add: cmd.run_all res: %s' % res)
+
+		ret['changes']['diff'] = ''.join(difflib.unified_diff(before.splitlines(True), show().splitlines(True), fromfile='dsconfigad -show', tofile='dsconfigad -show'))
 
 		if res['retcode'] != 0:
+			ret['comment'] += _ret_comment('Failed to add this computer (%s) to the domain: %s' % (computer, domain), res)
 			ret['result'] = False
 			return ret
 
+		ret['comment'] += _ret_comment('Successfully added this computer (%s) to the domain: %s' % (computer, domain), res)
 		ret['result'] = True
 		return ret
 
@@ -227,6 +366,7 @@ def config(use_pillar=False, **kwargs):
 
 	use_pillar		(False) apply all advanced options from pillar[dsconfigad]
 					if set, all kwargs are ignored
+					if len(kwargs) == 0: use_pillar = True
 
 	kwargs:
 	localuser *		username of a priveleged local user
@@ -253,6 +393,9 @@ def config(use_pillar=False, **kwargs):
 	* will look in pillar[dsconfigad] if not provided 
 	'''
 
+	log.info('> config()')
+	log.debug('> config(%s %s, %s %s)' % (use_pillar, type(use_pillar), kwargs, type(kwargs)))
+	ret['fun'] = 'config'
 	before = show()
 	
 	localuser = base64.b64decode(kwargs.pop('init_lu')) if 'init_lu' in kwargs else kwargs.pop('localuser', None)
@@ -260,9 +403,9 @@ def config(use_pillar=False, **kwargs):
 
 	# Get encoded configuration from pillar
 	if not localuser:
-		localuser = base64.b64decode(__salt__['config.get']('dsconfigad:init_lu', None))
+		localuser = base64.b64decode(__salt__['config.get']('dsconfigad:init_lu', ''))
 	if not localpassword:
-		localpassword = base64.b64decode(__salt__['config.get']('dsconfigad:init_lp', None))
+		localpassword = base64.b64decode(__salt__['config.get']('dsconfigad:init_lp', ''))
 
 	# If not encoded, try plain text. Get encoded configuration from pillar
 	if not localuser:
@@ -270,34 +413,91 @@ def config(use_pillar=False, **kwargs):
 	if not localpassword:
 		localpassword = __salt__['config.get']('dsconfigad:localpassword', None)
 
+	# kwargs contains __kwargs (private kwargs) that need to be excluded -- added by salt
+	# process loops through kwargs and deletes from cust_kwargs to avoid RuntimeError.
+	cust_kwargs = dict(kwargs)
+	for k, v in kwargs.iteritems():
+		if k.startswith('__'):
+			log.debug('~ config: removing private kwarg: %s' % k)
+			del cust_kwargs[k]
+
+	use_pillar = True if len(cust_kwargs) == 0 else use_pillar
+
 	if use_pillar:
 		adv_opts = __salt__['config.get']('dsconfigad')
 	else:
-		adv_opts = kwargs
+		adv_opts = cust_kwargs
+
+	log.debug('~ config: adv_opts: %s' % adv_opts)
 
 	for k, v in adv_opts.iteritems():
-		if is_set(**{k:v}):
-			ret['result'] = True
-			ret['comment'] += ('The option %s is already set to %s.\n' % (k,v))
+		log.debug('~ config: adv_opt: %s: %s' % (k, v))
+		if k not in dsconfig_adv:
+			log.debug('~ config: %s not in dsconfig_adv')
 			continue
-		else:
-			res = __salt__['cmd.run'](
-				'dsconfigad -%(option)s "%(value)s" %(localuser)s%(localpassword)s' % {
-					'option':k,
-					'value':v,
-					'localuser':' -localuser "%s"' % localuser if localuser else None,
-					'localpassword':' -localpassword "%s"' % localpassword if localpassword else None,
-				}
-			)
 
-			ret['comment'] += ('dsconfigad: %s\nPID: %s; RetCode: %s\n%s\n' % (res['stdout'], res['pid'], res['retcode'], res['stderr']))
+		elif _is_set(**{k:v}):
+			log.info('~ config: The option %s is already set to %s' % (k, v))
+			ret['result'] = True
+			if __salt__['config.get']('is_test_computer', False):
+				ret['comment'] += '%s == %s %s\n' % (k, v, type(v))
+
+			continue
+
+		else:
+			log.debug('~ config: Setting %s to %s' % (k, v))
+			dsconfigad = salt.utils.which('dsconfigad')
+
+			# options that expect enable/disable are stored as True/False.  This fixes that.
+			if len(dsconfig_adv[k]) == 2 and 'enable' in dsconfig_adv[k] and 'disable' in dsconfig_adv[k]:
+				v = dsconfig_adv[k][v]
+
+			# this needs to stay right before cmd to prevent other KeyErrors
+			if k == 'restrictddns':
+				# restringDDNS is case sensitive
+				k = 'restrictDDNS'
+
+				# restrictDDNS requires str('') instead of bool(False)
+				if type(v) is bool and v == False:
+					v = ''
+
+			if type(v) is list:
+				v = ','.join(v)
+
+			cmd = '%(dsconfigad)s -%(option)s "%(value)s"%(localuser)s%(localpassword)s' % {
+				'dsconfigad':dsconfigad,
+				'option':k,
+				'value':v,
+				'localuser':' -localuser "%s"' % localuser if localuser else '',
+				'localpassword':' -localpassword "%s"' % localpassword if localpassword else '',
+			}
+
+			log.debug('~ config: cmd.run_all (quiet): %s' % cmd)
+			# run quietly to prevent passwords from showing in info log.
+			res = __salt__['cmd.run_all'](cmd, quiet=True)
+			log.debug('~ config: cmd.run_all res: %s' % res)
+
+			log.info('~ config: The option %s is now set to %s' % (k, v))
+			if __salt__['config.get']('is_test_computer', False):
+				ret['comment'] += _ret_comment('%(k)s = %(v)s %(type)s' % {
+					'k':k,
+					'v':v,
+					'type':type(v),
+				}, res)
+			
 			if res['retcode'] != 0:
 				ret['result'] = False
-				ret['changes']['diff'] = ''.join(difflib.unified_diff(before, show()))
-				break
+				ret['changes']['diff'] = ''.join(difflib.unified_diff(before.splitlines(True), show().splitlines(True), fromfile='dsconfigad -show', tofile='dsconfigad -show'))
+				return ret
 
 	ret['result'] = True
-	ret['changes']['diff'] = ''.join(difflib.unified_diff(before, show()))
+	ret['changes']['diff'] = ''.join(difflib.unified_diff(before.splitlines(True), show().splitlines(True), fromfile='dsconfigad -show', tofile='dsconfigad -show'))
+	if len(ret['changes']['diff'].strip()) == 0:
+		ret['comment'] += 'No configuration changes necessary.'
+	
+	else:
+		ret['comment'] += 'Configuration changes made successfully.'
+
 	return ret
 
 
@@ -315,6 +515,9 @@ def remove(**kwargs):
 	* will look in pillar[dsconfigad] if not provided
 	'''
 	
+	log.info('> remove()')
+	log.debug('> remove(%s %s)' % (kwargs, type(kwargs)))
+	ret['fun'] = 'remove'
 	before = show()
 
 	if before.strip() == '':
@@ -330,13 +533,13 @@ def remove(**kwargs):
 	
 	# Get encoded configuration from pillar
 	if not username:
-		username = base64.b64decode(__salt__['config.get']('dsconfigad:init_u', None))
+		username = base64.b64decode(__salt__['config.get']('dsconfigad:init_u', ''))
 	if not password:
-		password = base64.b64decode(__salt__['config.get']('dsconfigad:init_p', None))
+		password = base64.b64decode(__salt__['config.get']('dsconfigad:init_p', ''))
 	if not localuser:
-		localuser = base64.b64decode(__salt__['config.get']('dsconfigad:init_lu', None))
+		localuser = base64.b64decode(__salt__['config.get']('dsconfigad:init_lu', ''))
 	if not localpassword:
-		localpassword = base64.b64decode(__salt__['config.get']('dsconfigad:init_lp', None))
+		localpassword = base64.b64decode(__salt__['config.get']('dsconfigad:init_lp', ''))
 
 	# If not encoded, try plain text. Get encoded configuration from pillar
 	if not username:
@@ -351,23 +554,30 @@ def remove(**kwargs):
 	if not username:
 		return False
 
-	res = __salt__['cmd.run'](
-		'dsconfigad -remove%(force)s%(username)s%(password)s%(localuser)s%(localpassword)s' % {
-			'force':' -force' if force else None,
-			'username':' -username "%s"' % username if username else None,
-			'password':' -password "%s"' % password if password else None,
-			'localuser':' -localuser "%s"' % localuser if localuser else None,
-			'localpassword':' -localpassword "%s"' % localpassword if localpassword else None,
-		}
-	)
+	dsconfigad = salt.utils.which('dsconfigad')
 
-	ret['changes']['diff'] = ''.join(difflib.unified_diff(before, show()))
-	ret['comment'] = ('dsconfigad: %s\nPID: %s; RetCode: %s\n%s' % (res['stdout'], res['pid'], res['retcode'], res['stderr']))
+	cmd = '%(dsconfigad)s -remove%(username)s%(password)s%(localuser)s%(localpassword)s%(force)s' % {
+		'dsconfigad':dsconfigad,
+		'force':' -force' if force else '',
+		'username':' -username "%s"' % username if username else '',
+		'password':' -password "%s"' % password if password else '',
+		'localuser':' -localuser "%s"' % localuser if localuser else '',
+		'localpassword':' -localpassword "%s"' % localpassword if localpassword else '',
+	}
 
+	log.debug('~ remove: cmd.run_all (quiet): %s' % cmd)
+	# run quietly to prevent passwords from showing in info log.
+	res = __salt__['cmd.run_all'](cmd, quiet=True)
+	log.debug('~ remove: cmd.run_all res: %s' % res)
+
+	ret['changes']['diff'] = ''.join(difflib.unified_diff(before.splitlines(True), show().splitlines(True), fromfile='dsconfigad -show', tofile='dsconfigad -show'))
+	
 	if res['retcode'] != 0:
+		ret['comment'] += _ret_comment('Failed to remove this computer from domain.', res)
 		ret['result'] = False
 		return ret
 
+	ret['comment'] += _ret_comment('Successfully removed this computer from domain.', res)
 	ret['result'] = True
 	return ret
 
@@ -383,6 +593,8 @@ def show(format=False):
 		salt '*' dsconfigad.show
 		salt '*' dsconfigad.show xml
 	'''
+
+	log.info('> show(format=%s)' % format)
 	
 	if type(format) is bool and not format:
 		return __salt__['cmd.run'](
@@ -391,6 +603,24 @@ def show(format=False):
 	elif format == 'xml':
 		return __salt__['cmd.run'](
 			'dsconfigad -show -xml'
-		)
+		).strip()
 	else:
 		return False
+
+
+def test(**kwargs):
+	'''
+	Testing returning states
+
+	CLI Example:
+
+	.. code-block:: bash
+
+		salt '*' dsconfigad.test
+	'''
+	log.info('> test(%s)' % kwargs)
+	
+	ret['fun'] = 'test'
+	ret['comment'] = 'kwargs: %s' % kwargs
+
+	return [ret]
