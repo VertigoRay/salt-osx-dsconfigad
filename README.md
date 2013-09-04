@@ -30,7 +30,7 @@ dev:
         - dsconfigad
 ```
 
-[Known Issues ...](#knownissues)
+[Known Issues ...](#known-issues)
 
 ---
 
@@ -78,9 +78,9 @@ Additional Documentation
   * [shell](#shell)
   * [uid](#uid)
   * [useuncpath](#useuncpath)
-  * [Sample Pillar](#samplepillar)
-* [Good Security Practices](#goodsecuritypractices)
-* [Known Issues](#knownissues)
+  * [Sample Pillar](#sample-pillar)
+* [Good Security Practices](#good-security-practices)
+* [Known Issues](#known-issues)
 
 ---
 
@@ -191,7 +191,7 @@ salt '.' dsconfigad.show xml
 
 ~ [Pillar Documentation](http://docs.saltstack.com/topics/pillar/) - More info on the usage of Pillars can be found there.
 
-In this section, I'll breakdown how to YAMLize your dsconfigad settings.  A full [sample pillar](#samplepillar) .sls is available below.  Details on what each setting does can be found in [Apple's Ducumentation](http://bit.ly/15gnT5I).
+In this section, I'll breakdown how to YAMLize your dsconfigad settings.  A full [sample pillar](#sample-pillar) .sls is available below.  Details on what each setting does can be found in [Apple's Ducumentation](http://bit.ly/15gnT5I).
 
 **_Note:_ in Pillar, always use ALL _lowercase_!**
 
@@ -345,7 +345,7 @@ dsconfigad:
 
 #### init_u
 
-The base64 encoded username of a privileged network user.  [Good Security Practices](#goodsecuritypractices) are recommended for this account.
+The base64 encoded username of a privileged network user.  [Good Security Practices](#good-security-practices) are recommended for this account.
 
 **_Note:_ Base64 is _NOT_ encrypted.  It is merely obfuscated.  I am not aware of a crypto module available to a clean python install.  If you have a better way, feel free to contribute.**
 
@@ -364,7 +364,7 @@ dsconfigad:
 
 #### init_p
 
-The base64 encoded password of a privileged network user.  [Good Security Practices](#goodsecuritypractices) are recommended for this account.
+The base64 encoded password of a privileged network user.  [Good Security Practices](#good-security-practices) are recommended for this account.
 
 **_Note:_ Base64 is _NOT_ encrypted.  It is merely obfuscated.  I am not aware of a crypto module available to a clean python install.  If you have a better way, feel free to contribute.**
 
