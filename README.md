@@ -9,6 +9,7 @@ Public Functions:
 * [show](#show)
 
 Note:  The `test` function, if available, does nothing with dsconfigad.  It was used while debugging, and will likely be removed in a future commit.
+
 Note:  The `_is_set` function is private because salt CLI passes private variables (ie: __pub_user, __pub_arg, __pub_fun, etc.) into kwargs that aren't currently handled -- and may never be.
 
 Additional Documentation
@@ -148,7 +149,7 @@ salt '.' dsconfigad.show xml
 
 ~ [Pillar Documentation](http://docs.saltstack.com/topics/pillar/) - More info on the usage of Pillars can be found there.
 
-In this section, I'll breakdown how to YAMLize your dsconfigad settings.  Required settings are followed by an asterisk (*).  A full [sample pillar](#samplepillar) .sls is available below.  Details on what each setting does can be found in [Apple's Ducumentation](http://bit.ly/15gnT5I).
+In this section, I'll breakdown how to YAMLize your dsconfigad settings.  A full [sample pillar](#samplepillar) .sls is available below.  Details on what each setting does can be found in [Apple's Ducumentation](http://bit.ly/15gnT5I).
 
 **_Note:_ in Pillar, always use ALL _lowercase_!**
 
@@ -198,7 +199,8 @@ dsconfigad:
 
 Fully qualified DNS name of Active Directory Domain.
 
-If `salt '*' dsconfigad.show` returns an _Active Directory Domain_ that is different from this setting, the following actions are taken (dot (.) represents the targetted computer and is NOT salt syntax):
+If `salt '.' dsconfigad.show` returns an _Active Directory Domain_ that is different from this setting, the following actions are taken (dot (.) represents the targetted computer and is NOT salt syntax):
+
 1. `salt '.' dsconfigad.remove`
 2. `salt '.' dsconfigad.add`
 
@@ -212,7 +214,8 @@ dsconfigad:
 
 Fully qualified DNS name of Active Directory Forest.
 
-If `salt '*' dsconfigad.show` returns an _Active Directory Forest_ that is different from this setting, the following actions are taken (dot (.) represents the targetted computer and is NOT salt syntax):
+If `salt '.' dsconfigad.show` returns an _Active Directory Forest_ that is different from this setting, the following actions are taken (dot (.) represents the targetted computer and is NOT salt syntax):
+
 1. `salt '.' dsconfigad.remove`
 2. `salt '.' dsconfigad.add`
 
@@ -231,10 +234,11 @@ The Computer Account.  **This setting should not be used in most cases.**  When 
 ```python
 >>> import socket
 >>> socket.gethostname()
-'socket.gethostname()'
+'testcomp001'
 ```
 
-If `salt '*' dsconfigad.show` returns an _Active Directory Forest_ that is different from this setting, the following actions are taken (dot (.) represents the targetted computer and is NOT salt syntax):
+If `salt '.' dsconfigad.show` returns an _Active Directory Forest_ that is different from this setting, the following actions are taken (dot (.) represents the targetted computer and is NOT salt syntax):
+
 1. `salt '.' dsconfigad.remove`
 2. `salt '.' dsconfigad.add`
 
@@ -248,7 +252,6 @@ dsconfigad:
 
 Fully qualified LDAP DN of container for the computer (defaults to OU=Computers).
 
-
 ```yaml
 dsconfigad:
   ou: 'OU=Darwin,OU=Computers,DC=example,DC=com'
@@ -258,6 +261,7 @@ dsconfigad:
 #### username
 
 The username of a privileged network user.
+
 **_Note:_ It is not recommended that you store a domain username in plain text in your Pillar.  See [init_u](#pillar_init_u) instead.**
 
 ```yaml
@@ -269,6 +273,7 @@ dsconfigad:
 #### password
 
 The password of a privileged network user.
+
 **_Note:_ It is not recommended that you store a domain password in plain text in your Pillar.  See [init_p](#pillar_init_p) instead.**
 
 ```yaml
@@ -280,7 +285,9 @@ dsconfigad:
 #### localuser
 
 The username of a privileged local user.
+
 **_Note:_ It is not recommended that you store a local username in plain text in your Pillar.  See [init_lu](#pillar_init_lu) instead.**
+
 **_Note:_ Since salt runs as root, this option is NOT necessary -- at least not in my testing.  However, I made it available because I don't know your use case.**
 
 ```yaml
@@ -292,7 +299,9 @@ dsconfigad:
 #### localpassword
 
 The password of a privileged local user.
-**_Note:_ It is not recommended that you store a local username in plain text in your Pillar.  See [init_lu](#pillar_init_lp) instead.**
+
+**_Note:_ It is not recommended that you store a local username in plain text in your Pillar.  See [init_lp](#pillar_init_lp) instead.**
+
 **_Note:_ Since salt runs as root, this option is NOT necessary -- at least not in my testing.  However, I made it available because I don't know your use case.**
 
 ```yaml
@@ -304,6 +313,7 @@ dsconfigad:
 #### init_u
 
 The base64 encoded username of a privileged network user.  [Good Security Practices](#goodsecuritypractices) are recommended for this account.
+
 **_Note:_ Base64 is _NOT_ encrypted.  It is merely obfuscated.  I am not aware of a crypto module available to a clean python install.  If you have a better way, feel free to contribute.**
 
 To get the encoded version of your username, pass it through `base64.b64encode()` as shown:
@@ -323,6 +333,7 @@ dsconfigad:
 #### init_p
 
 The base64 encoded password of a privileged network user.  [Good Security Practices](#goodsecuritypractices) are recommended for this account.
+
 **_Note:_ Base64 is _NOT_ encrypted.  It is merely obfuscated.  I am not aware of a crypto module available to a clean python install.  If you have a better way, feel free to contribute.**
 
 To get the encoded version of your username, pass it through `base64.b64encode()` as shown:
@@ -342,13 +353,15 @@ dsconfigad:
 #### init_lu
 
 The base64 encoded username of a privileged local user.
+
 **_Note:_ Base64 is _NOT_ encrypted.  It is merely obfuscated.  I am not aware of a crypto module available to a clean python install.  If you have a better way, feel free to contribute.**
+
 **_Note:_ Since salt runs as root, this option is NOT necessary -- at least not in my testing.  However, I made it available because I don't know your use case.**
 
 To get the encoded version of your username, pass it through `base64.b64encode()` as shown:
 ```python
 >>> import base64
->>> >>> base64.b64encode('LocalUser')
+>>> base64.b64encode('LocalUser')
 'TG9jYWxVc2Vy'
 ```
 
@@ -362,7 +375,9 @@ dsconfigad:
 #### init_lp
 
 The base64 encoded password of a privileged local user.
+
 **_Note:_ Base64 is _NOT_ encrypted.  It is merely obfuscated.  I am not aware of a crypto module available to a clean python install.  If you have a better way, feel free to contribute.**
+
 **_Note:_ Since salt runs as root, this option is NOT necessary -- at least not in my testing.  However, I made it available because I don't know your use case.**
 
 To get the encoded version of your username, pass it through `base64.b64encode()` as shown:
@@ -430,8 +445,8 @@ dsconfigad:
 
 Set ggid to the AD User Account's UnixGGID Property:
 ```yaml
-dsconfigad: UnixGGID
-  ggid: 
+dsconfigad:
+  ggid: UnixGGID
 ```
 
 <a name="pillar_gid"/>
@@ -447,8 +462,8 @@ dsconfigad:
 
 Set ggid to the AD User Account's UnixGID Property:
 ```yaml
-dsconfigad: UnixGID
-  gid: 
+dsconfigad:
+  gid:  UnixGID
 ```
 
 <a name="pillar_groups"/>
@@ -462,10 +477,18 @@ dsconfigad:
   groups: False
 ```
 
-Set domain Admin:
+Set Local Admin:
 ```yaml
 dsconfigad:
-  groups: EXAMPLE\DesktopAdmins
+  groups: EXAMPLE\DarwinAdmins
+```
+
+Set Multiple Local Admin:
+```yaml
+dsconfigad:
+  groups:
+    - EXAMPLE\DarwinAdmins
+    - EXAMPLE\Domain Admins
 ```
 
 <a name="pillar_mobile"/>
@@ -724,9 +747,24 @@ This is [discussed on TechNET](http://bit.ly/15BPePN) -- albeit not very thoroug
 <a name="knownissues"/>
 ### Known Issues
 
+#### Salt API Issue
+
 This module doesn't talk properly with the salt api yet.  I get the following errors when running `salt '*' state.highstate`:
 
 * The state "dsconfigad.add" in sls apps.dsconfigad is not formed as a list
 * The state "dsconfigad.config" in sls apps.dsconfigad is not formed as a list
 
 Not sure what needs to be formed as a list yet, but I'll get it figure out.
+
+#### Preferred is required
+
+In my environment, the `preferred` option is required to bind.  I've tried to trace down the root cause of this, but with no luck.  This appears to be a _dsconfigad_ issue.
+
+Without `preferred`, I would get the following error:
+
+> Authentication server could not be contacted
+
+This error is discussed on [Apple Support](https://discussions.apple.com/thread/3198558).
+
+_Note:_ my `_ldap._tcp.example.com` record is set-up correctly.
+_Note:_ using the FQDN for the domain doesn't work for `preferred`.  I get a different error about the DC not being reachable.  Only an FQDN of the server will work for `preferred`.
