@@ -30,8 +30,6 @@ dev:
         - dsconfigad
 ```
 
-[Known Issues ...](#known-issues)
-
 ---
 
 Public Functions:
@@ -80,7 +78,6 @@ Additional Documentation
   * [useuncpath](#useuncpath)
   * [Sample Pillar](#sample-pillar)
 * [Good Security Practices](#good-security-practices)
-* [Known Issues](#known-issues)
 
 ---
 
@@ -752,27 +749,3 @@ dsconfigad:
 When scripting services that require a password to be stored on multiple computers, you should always lock down the account so that it is only able to perform the task that you desire.  I highly suggest one account per task.
 
 This is [discussed on TechNET](http://bit.ly/15BPePN) -- albeit not very thoroughly.  Maybe I'll blog the details later and link it here ...
-
-### Known Issues
-
-#### Salt API Issue
-
-This module doesn't talk properly with the salt api yet.  I get the following errors when running `salt '*' state.highstate`:
-
-* The state "dsconfigad.add" in sls apps.dsconfigad is not formed as a list
-* The state "dsconfigad.config" in sls apps.dsconfigad is not formed as a list
-
-Not sure what needs to be formed as a list yet, but I'll get it figure out.
-
-#### Preferred is required
-
-In my environment, the `preferred` option is required to bind.  I've tried to trace down the root cause of this, but with no luck.  This appears to be a _dsconfigad_ issue.
-
-Without `preferred`, I would get the following error:
-
-> Authentication server could not be contacted
-
-This error is discussed on [Apple Support](https://discussions.apple.com/thread/3198558).
-
-_Note:_ my `_ldap._tcp.example.com` record is set-up correctly.
-_Note:_ using the FQDN for the domain doesn't work for `preferred`.  I get a different error about the DC not being reachable.  Only an FQDN of the server will work for `preferred`.
