@@ -18,8 +18,9 @@ This is a very basic (4 steps) install walkthrough.  You will need to adjust thi
 
 3. Create an file_roots/dsconfigad/init.sls:  
 ```yaml
-dsconfigad.add
-dsconfigad.config
+dsconfigad:
+      dsconfigad:
+        - bind
 ```
 
 4. Add dsconfigad to your top.sls -- hopefully you have a `dev` [environment](http://docs.saltstack.com/ref/states/top.html) to test with, else use `base`:  
@@ -35,6 +36,7 @@ dev:
 
 Public Functions:
 * [add](#add)
+* [bind](#bind)
 * [config](#config)
 * [remove](#remove)
 * [show](#show)
@@ -102,6 +104,19 @@ _Note:_ * will look in pillar[dsconfigad] if not provided
 CLI Example (dot (.) represents the targetted computer and is NOT salt syntax):
 ```bash
 salt '.' dsconfigad.add
+```
+
+### bind
+
+Add the computer to the domain, then config the advanced option.
+
+All kwargs are passed to add() and config()
+
+_Note:_ Will look for config in pillar[dsconfigad] if nothing is provided
+
+CLI Example (dot (.) represents the targetted computer and is NOT salt syntax):
+```bash
+salt '.' dsconfigad.bind
 ```
 
 ### config
