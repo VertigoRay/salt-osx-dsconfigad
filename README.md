@@ -2,6 +2,9 @@
 
 A module to wrap [dsconfigad](http://bit.ly/15gnT5I) calls.
 
+Tested on: 10.8.4
+
+Content:
 * [Install](#install)
 * [Basic Usage](#basic-usage)
   * [States](#states)
