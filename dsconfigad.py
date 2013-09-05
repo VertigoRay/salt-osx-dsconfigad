@@ -91,7 +91,7 @@ def __virtual__():
 
 
 def _ret_comment(comment, res):
-    comment = comment + '%(pid)s%(retcode)s%(stdout)s%(stderr)s\n' if __salt__['config.get']('is_test_computer', False) else '%s\n' % comment
+    comment = comment + '%(pid)s%(retcode)s%(stdout)s%(stderr)s\n' if logging.getLogger().getEffectiveLevel() == logging.DEBUG else '%s\n' % comment
     return comment % {
         'pid':" <pid '%s'>" % res['pid'], 
         'retcode':"<retcode '%s'>" % res['retcode'], 
@@ -499,7 +499,7 @@ def config(use_pillar=False, **kwargs):
         elif _is_set(**{k:v}):
             log.info('~ config: The option %s is already set to %s' % (k, v))
             ret['result'] = True
-            if __salt__['config.get']('is_test_computer', False):
+            if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
                 ret['comment'] += '%s == %s %s\n' % (k, v, type(v))
 
             continue
@@ -548,7 +548,7 @@ def config(use_pillar=False, **kwargs):
             log.debug('~ config: cmd.run_all res: %s' % res)
 
             log.info('~ config: The option %s is now set to %s' % (k, v))
-            if __salt__['config.get']('is_test_computer', False):
+            if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
                 ret['comment'] += _ret_comment('%(k)s = %(v)s %(type)s' % {
                     'k':k,
                     'v':v,
