@@ -51,7 +51,7 @@ A module to wrap [dsconfigad](http://bit.ly/15gnT5I) calls.
 
 ##Install
 
-This is a very basic (4 steps) install walkthrough.  You will need to adjust this to your environment.  If you have salt specific questions, connected with the [SaltStack community](http://saltstack.org).
+This is a very basic install walkthrough.  You will need to adjust this to your environment.  If you have salt specific questions, connected with the [SaltStack community](http://saltstack.org).
 
 1. Place [dsconfigad.py](https://github.com/VertigoRay/salt-osx-dsconfigad/blob/master/dsconfigad.py) in the file_roots/[_modules](http://bit.ly/19X3Y4c) directory.
 2. Setup the [dsconfigad Pillar](#pillar).  
@@ -272,7 +272,7 @@ In this section, I'll breakdown how to YAMLize your dsconfigad settings.  A full
 * [uid](#uid)
 * [useuncpath](#useuncpath)
 
-**_Note:_** These options are what's available in OS X 10.8.4.  New _Advanced Options_ that are released in future _will not_ just work -- they will need to be added to the `dsconfigad_adv` dict.  Just use it in the same fashion as a similar option.  For example, if you want to disable a _newoption_ that has enable/disable as possible options:
+**_Note:_** These options are what's available in OS X 10.8.4.  New _Advanced Options_ that are released in future _will not_ just work -- they will need to be added to the `dsconfigad_adv` dict.  Then they can just be used it in the same fashion as a similar option.  For example, after adding a _newoption_ option that has enable/disable as possible options, you can disable it with as follows:
 ```yaml
 dsconfigad:
   newoption: False
