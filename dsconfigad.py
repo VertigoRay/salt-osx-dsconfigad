@@ -1,9 +1,8 @@
 '''
 A module to wrap dsconfigad calls
 
-:maintainer:    Raymond Piller <ray@vertigion.com>
+:maintainer:    VertigoRay < http://github.com/VertigoRay >
 :maturity:      new
-:depends:       
 :platform:      Darwin
 '''
 
@@ -690,6 +689,7 @@ def show(format=False):
         ).strip()
     
     else:
+        log.error('<! show: Unsupported format: %s' % format)
         return 'Unsupported format: %s' % format
 
 
