@@ -667,16 +667,30 @@ def show(format=False):
     log.info('> show(format=%s)' % format)
     ret['fun'] = 'show'
     
-    if type(format) is bool and not format:
-        return __salt__['cmd.run'](
+    if format == False:
+        res = __salt__['cmd.run_all'](
             'dsconfigad -show'
         )
+
+        if res['retcode'] != 0:
+            log.error('<! show: Error: %s' % res)
+            return 'Error:\n%s' % res
+        
+        elif len(res['stdout'].strip()) == 0:
+            log.info('< show: Computer is NOT bound to a domain.')
+            return 'Computer is NOT bound to a domain.'
+
+        else:
+            log.info('< show: Bound - returning results.')
+            return res['stdout']
+
     elif format == 'xml':
         return __salt__['cmd.run'](
             'dsconfigad -show -xml'
         ).strip()
+    
     else:
-        return False
+        return 'Unsupported format: %s' % format
 
 
 def test(**kwargs):
