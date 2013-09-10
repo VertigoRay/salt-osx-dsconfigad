@@ -1,4 +1,4 @@
-# dsconfigad
+# salt-osx-dsconfigad
 
 A module to wrap [dsconfigad](http://bit.ly/15gnT5I) calls.
 
