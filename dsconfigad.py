@@ -208,7 +208,7 @@ def _is_set(**kwargs):
                     continue
                 
                 elif sorted(v) == sorted(settings[k]):
-                    log.debug('~ is_set: sorted(%s) == sorted(%s)' % (settings[k], type(settings[k]), v, type(v), sorted(settings[k]), sorted(v)))
+                    log.debug('~ is_set: sorted(%s) == sorted(%s)' % (sorted(settings[k]), sorted(v)))
                     continue
 
                 elif type(v) != type(settings[k]):
@@ -225,7 +225,7 @@ def _is_set(**kwargs):
                         setting_temp = [settings[k]]
 
                     if sorted(v) == sorted(settings[k]):
-                        log.debug('~ is_set: sorted(%s) == sorted(%s)' % (settings[k], type(settings[k]), v, type(v), sorted(settings[k]), sorted(v)))
+                        log.debug('~ is_set: sorted(%s) == sorted(%s)' % (sorted(settings[k]), sorted(v)))
                         continue
 
                 else:
